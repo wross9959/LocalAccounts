@@ -77,7 +77,7 @@
     <ClaimsProvider>
       <DisplayName>Invite Signup</DisplayName>
       <TechnicalProfiles>
-        <!-- Check if user exists without throwing error -->
+        <!-- Check if user exists without throwing error - only when email is provided -->
         <TechnicalProfile Id="AAD-UserReadUsingEmailAddress-NoError">
           <Metadata>
             <Item Key="Operation">Read</Item>
@@ -85,13 +85,11 @@
           </Metadata>
           <IncludeInSso>false</IncludeInSso>
           <InputClaims>
-            <InputClaim ClaimTypeReferenceId="email" PartnerClaimType="signInNames.emailAddress"
-              Required="true" DefaultValue="{OAUTH-KV:email}" AlwaysUseDefaultValue="true" />
+            <InputClaim ClaimTypeReferenceId="email" PartnerClaimType="signInNames.emailAddress" Required="true" />
           </InputClaims>
           <OutputClaims>
             <OutputClaim ClaimTypeReferenceId="objectId" />
-            <OutputClaim ClaimTypeReferenceId="authenticationSource"
-              DefaultValue="localAccountAuthentication" />
+            <OutputClaim ClaimTypeReferenceId="authenticationSource" DefaultValue="localAccountAuthentication" />
           </OutputClaims>
           <IncludeTechnicalProfile ReferenceId="AAD-Common" />
         </TechnicalProfile>
@@ -103,6 +101,7 @@
           <Metadata>
             <Item Key="IpAddressClaimReferenceId">IpAddress</Item>
             <Item Key="ContentDefinitionReferenceId">api.localaccountsignup</Item>
+            <Item Key="IncludeClaimResolvingInClaimsHandling">true</Item>
           </Metadata>
           <CryptographicKeys>
             <Key Id="issuer_secret" StorageReferenceId="B2C_1A_TokenSigningKeyContainer" />
@@ -113,13 +112,15 @@
               AlwaysUseDefaultValue="true" />
             <InputClaim ClaimTypeReferenceId="readOnlyEmail" DefaultValue="{OAUTH-KV:email}"
               AlwaysUseDefaultValue="true" />
-            <!-- Pre-populate displayName from query string parameter (hidden) - lowercase parameter -->
+            <!-- Pre-populate displayName from query string parameter - visible and read-only -->
             <InputClaim ClaimTypeReferenceId="displayName" DefaultValue="{OAUTH-KV:displayname}"
               AlwaysUseDefaultValue="true" />
           </InputClaims>
           <DisplayClaims>
             <!-- Show read-only email field -->
             <DisplayClaim ClaimTypeReferenceId="readOnlyEmail" Required="true" />
+            <!-- Show read-only displayName field -->
+            <DisplayClaim ClaimTypeReferenceId="displayName" Required="true" />
             <DisplayClaim ClaimTypeReferenceId="newPassword" Required="true" />
             <DisplayClaim ClaimTypeReferenceId="reenterPassword" Required="true" />
             <!-- Optional claims -->
@@ -130,13 +131,12 @@
             <OutputClaim ClaimTypeReferenceId="objectId" />
             <OutputClaim ClaimTypeReferenceId="email" PartnerClaimType="Verified.Email"
               Required="true" />
-            <OutputClaim ClaimTypeReferenceId="readOnlyEmail" Required="true" />
             <OutputClaim ClaimTypeReferenceId="newPassword" Required="true" />
             <OutputClaim ClaimTypeReferenceId="reenterPassword" Required="true" />
             <OutputClaim ClaimTypeReferenceId="executed-SelfAsserted-Input" DefaultValue="true" />
             <OutputClaim ClaimTypeReferenceId="authenticationSource" />
             <OutputClaim ClaimTypeReferenceId="newUser" />
-            <!-- displayName is hidden but captured from query string -->
+            <!-- displayName is visible and captured from query string -->
             <OutputClaim ClaimTypeReferenceId="displayName" />
             <OutputClaim ClaimTypeReferenceId="givenName" />
             <OutputClaim ClaimTypeReferenceId="surName" />
@@ -157,8 +157,14 @@
     <UserJourney Id="InviteSignUp">
       <OrchestrationSteps>
 
-        <!-- Step 1: Check if user already exists -->
+        <!-- Step 1: Check if user already exists (only if email provided in URL) -->
         <OrchestrationStep Order="1" Type="ClaimsExchange">
+          <Preconditions>
+            <Precondition Type="ClaimsExist" ExecuteActionsIf="false">
+              <Value>email</Value>
+              <Action>SkipThisOrchestrationStep</Action>
+            </Precondition>
+          </Preconditions>
           <ClaimsExchanges>
             <ClaimsExchange Id="CheckUserExists"
               TechnicalProfileReferenceId="AAD-UserReadUsingEmailAddress-NoError" />
@@ -180,7 +186,7 @@
           </ClaimsExchanges>
         </OrchestrationStep>
 
-        <!-- Step 3: If user doesn't exist, show signup with pre-filled email from invitation -->
+        <!-- Step 3: If user doesn't exist (or no email param), show signup -->
         <OrchestrationStep Order="3" Type="ClaimsExchange"
           ContentDefinitionReferenceId="api.localaccountsignup">
           <Preconditions>
@@ -205,35 +211,6 @@
 
         <!-- Step 5: Issue token -->
         <OrchestrationStep Order="5" Type="SendClaims"
-          CpimIssuerTechnicalProfileReferenceId="JwtIssuer" />
-
-      </OrchestrationSteps>
-      <ClientDefinition ReferenceId="DefaultWeb" />
-    </UserJourney>
-
-    <!-- Signin-only user journey (no signup option) -->
-    <UserJourney Id="SignInOnly">
-      <OrchestrationSteps>
-
-        <!-- Step 1: Signin only, no signup link -->
-        <OrchestrationStep Order="1" Type="ClaimsExchange"
-          ContentDefinitionReferenceId="api.localaccountsignin">
-          <ClaimsExchanges>
-            <ClaimsExchange Id="LocalAccountSigninEmailExchange"
-              TechnicalProfileReferenceId="SelfAsserted-LocalAccountSignin-Email-SigninOnly" />
-          </ClaimsExchanges>
-        </OrchestrationStep>
-
-        <!-- Step 2: Read user attributes -->
-        <OrchestrationStep Order="2" Type="ClaimsExchange">
-          <ClaimsExchanges>
-            <ClaimsExchange Id="AADUserReadWithObjectId"
-              TechnicalProfileReferenceId="AAD-UserReadUsingObjectId" />
-          </ClaimsExchanges>
-        </OrchestrationStep>
-
-        <!-- Step 3: Issue token -->
-        <OrchestrationStep Order="3" Type="SendClaims"
           CpimIssuerTechnicalProfileReferenceId="JwtIssuer" />
 
       </OrchestrationSteps>
